@@ -107,6 +107,8 @@
       <button class="btn main" id="play" type="button">Via il round</button>
       <button class="btn" id="speed" type="button">×1</button>
       <button class="btn" id="pause" type="button">Pausa</button>
+      <button class="btn" id="save" type="button">Salva</button>
+      <button class="btn" id="auto" type="button">Auto: no</button>
       <button class="btn" id="menu" type="button">Menu</button>
     </div>
   </header>
@@ -135,6 +137,7 @@
     <div class="opts" id="maps"></div>
     <h2>Difficoltà</h2>
     <div class="opts" id="diffs"></div>
+    <button class="btn" id="load" type="button" hidden>Carica partita salvata</button>
     <button class="btn main" id="go" type="button">Gioca</button>
   </div>
 </div>
@@ -245,6 +248,7 @@
     cash: 0, lives: 0, round: 0, active: false, clock: 0, spawns: [],
     balloons: [], towers: [], projs: [], fx: [], speed: 1, paused: false,
     place: null, sel: null, hover: null, over: false, won: false, playing: false,
+    auto: false, autoT: 0,
     PTS: [], SEG: [], TOTAL: 0,
   };
   const cv = $('cv'), ctx = cv.getContext('2d');
@@ -426,6 +430,10 @@
 
   /* ---------- Aggiornamento ---------- */
   function update(dt) {
+    if (S.autoT > 0 && !S.paused) {
+      S.autoT -= dt;
+      if (S.autoT <= 0) { S.autoT = 0; startRound(); }
+    }
     if (S.active && !S.paused) {
       S.clock += dt;
       while (S.spawns.length && S.spawns[0].t <= S.clock) {
@@ -502,12 +510,49 @@
       const bonus = Math.round((100 + S.round * 10) * S.diff.cashMul);
       S.cash += bonus;
       if (S.round >= 40) endGame(true);
-      else say('Round ' + S.round + ' completato: +' + bonus + ' soldi.', 'good');
+      else {
+        say('Round ' + S.round + ' completato: +' + bonus + ' soldi.', 'good');
+        saveGame(true);
+        if (S.auto) S.autoT = 2.5;
+      }
     }
 
     for (const f of S.fx) { f.t += dt; f.r = (f.t / f.life) * (f.max || 0); }
     S.fx = S.fx.filter((f) => f.t < f.life);
     for (const t of S.towers) t.recoil = Math.max(0, (t.recoil || 0) - dt);
+  }
+
+  /* ---------- Salvataggio ---------- */
+  const SAVE_KEY = 'pop-td-save-v1';
+  function readSave() {
+    try {
+      const d = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+      return d && typeof d.round === 'number' && Array.isArray(d.towers) && MAPS[d.mapIdx] && DIFFS[d.diffIdx] ? d : null;
+    } catch (e) { return null; }
+  }
+  function refreshLoad() { $('load').hidden = !readSave(); }
+  function saveGame(silent) {
+    if (!S.playing || S.active || S.over) { if (!silent) say('Puoi salvare solo tra un round e l’altro.', 'bad'); return; }
+    const data = {
+      mapIdx: S.mapIdx, diffIdx: S.diffIdx, cash: S.cash, lives: S.lives, round: S.round,
+      towers: S.towers.map((t) => ({ k: t.k, x: t.x, y: t.y, a: t.a, b: t.b, spent: t.spent })),
+    };
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+      if (!silent) say('Partita salvata.', 'good');
+    } catch (e) {
+      if (!silent) say('Salvataggio non disponibile in questo browser.', 'bad');
+    }
+    refreshLoad();
+  }
+  function loadGame() {
+    const data = readSave();
+    if (!data) { say('Nessun salvataggio trovato.', 'bad'); return; }
+    S.mapIdx = data.mapIdx; S.diffIdx = data.diffIdx;
+    newGame();
+    S.cash = data.cash; S.lives = data.lives; S.round = data.round;
+    S.towers = data.towers.filter((t) => TD[t.k]).map((t) => ({ k: t.k, x: t.x, y: t.y, a: t.a, b: t.b, cool: 0, spent: t.spent, recoil: 0 }));
+    say('Partita caricata: si riparte dal round ' + (S.round + 1) + '.', 'good');
   }
 
   function endGame(won) {
@@ -642,6 +687,9 @@
     $('speed').textContent = '×' + S.speed;
     $('pause').textContent = S.paused ? 'Riprendi' : 'Pausa';
     $('pause').classList.toggle('on', S.paused);
+    $('save').disabled = S.active || S.over || !S.playing;
+    $('auto').textContent = 'Auto: ' + (S.auto ? 'sì' : 'no');
+    $('auto').classList.toggle('on', S.auto);
     $('play').disabled = S.active || S.over || !S.playing;
     $('play').textContent = S.active ? 'In corso…' : (S.round === 0 ? 'Via il round' : 'Prossimo round');
     document.querySelectorAll('.tw').forEach((b) => {
@@ -732,7 +780,15 @@
   $('play').addEventListener('click', startRound);
   $('speed').addEventListener('click', () => { S.speed = S.speed === 1 ? 2 : S.speed === 2 ? 3 : 1; });
   $('pause').addEventListener('click', () => { S.paused = !S.paused; });
-  $('menu').addEventListener('click', () => { S.paused = true; $('start').hidden = false; });
+  $('save').addEventListener('click', () => saveGame(false));
+  $('auto').addEventListener('click', () => {
+    S.auto = !S.auto;
+    if (!S.auto) S.autoT = 0;
+    say(S.auto ? 'Round automatici attivi: il prossimo parte da solo.' : 'Round automatici disattivati.');
+    if (S.auto && !S.active && S.playing && !S.over) startRound();
+  });
+  $('menu').addEventListener('click', () => { S.paused = true; refreshLoad(); $('start').hidden = false; });
+  $('load').addEventListener('click', loadGame);
 
   /* ---------- Menu iniziale ---------- */
   function buildMenu() {
@@ -789,6 +845,7 @@
 
   buildShop();
   buildMenu();
+  refreshLoad();
   setMap(MAPS[0]);
   let last = performance.now();
   function frame(now) {
