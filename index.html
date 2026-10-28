@@ -161,7 +161,7 @@
       g1: '#dcb878', g2: '#d0ae6e', p1: '#8a6334', p2: '#c49a5c' },
     { name: 'Vulcano', desc: 'Rocce nere e un fiume di lava.', theme: 'vulcano', seed: 33,
       wp: [[-1,0],[4,0],[4,5],[1,5],[1,9],[9,9],[9,4],[14,4],[14,0],[17,0]],
-      g1: '#2e323c', g2: '#282c35', p1: '#5a2a14', p2: '#f97316' },
+      g1: '#2e323c', g2: '#282c35', p1: '#5a2a14', p2: '#f97316', cm: 1.2, sm: 1.1 },
     { name: 'Neve', desc: 'Pini, neve alta e sentiero ghiacciato.', theme: 'neve', seed: 44,
       wp: [[-1,1],[4,1],[4,4],[1,4],[1,8],[7,8],[7,2],[11,2],[11,6],[15,6],[17,6]],
       g1: '#e4eef6', g2: '#d6e4ef', p1: '#9bb6c9', p2: '#f4f9fc' },
@@ -170,7 +170,10 @@
       g1: '#1f6135', g2: '#1b5630', p1: '#6b4f2a', p2: '#a57c46' },
     { name: 'Città notturna', desc: 'Strade buie tra i palazzi.', theme: 'citta', seed: 66,
       wp: [[-1,0],[12,0],[12,3],[3,3],[3,7],[14,7],[14,9],[17,9]],
-      g1: '#2a2f45', g2: '#252a3e', p1: '#171b29', p2: '#4b5673' },
+      g1: '#2a2f45', g2: '#252a3e', p1: '#171b29', p2: '#4b5673', cm: 1.25, sm: 1.12 },
+    { name: 'Tempesta', desc: 'Pioggia, vento e palloni più veloci.', theme: 'tempesta', seed: 77,
+      wp: [[-1,9],[2,9],[2,5],[5,5],[5,1],[9,1],[9,8],[13,8],[13,3],[17,3]],
+      g1: '#3d4a5c', g2: '#384455', p1: '#5b5246', p2: '#8a7f70', cm: 1.3, sm: 1.15 },
   ];
 
   const DIFFS = [
@@ -193,8 +196,15 @@
     lead:    { hp: 12, sp: 60,  c: '#64748b', lives: 8,  pal: ['#e2e8f0', '#64748b', '#1e293b'], edge: '#cbd5e1', sharpImmune: true, rivets: true },
     ceramic: { hp: 10, sp: 90,  c: '#f1f5f9', lives: 8,  pal: ['#ffffff', '#e2e8f0', '#94a3b8'], edge: '#94a3b8', crack: true },
     rainbow: { hp: 20, sp: 105, c: '#a855f7', lives: 10, pal: ['#fff', '#fff', '#ddd'], stripes: true },
+    // Dirigibile (ogni 5 round) e boss (ogni 10 round): design originali.
+    blimp:      { hp: 40,  sp: 70, c: '#3b82f6', lives: 12, pal: ['#bfdbfe', '#3b82f6', '#1e3a8a'], blimp: true, rad: 26 },
+    bossred:    { hp: 90,  sp: 55, c: '#dc2626', lives: 20, pal: ['#fecaca', '#dc2626', '#7f1d1d'], boss: true, rad: 30 },
+    bossgreen:  { hp: 140, sp: 55, c: '#16a34a', lives: 25, pal: ['#bbf7d0', '#16a34a', '#14532d'], boss: true, rad: 30 },
+    bossblack:  { hp: 200, sp: 50, c: '#111827', lives: 30, pal: ['#6b7280', '#111827', '#000000'], boss: true, rad: 30 },
+    bossviolet: { hp: 280, sp: 50, c: '#9333ea', lives: 35, pal: ['#e9d5ff', '#9333ea', '#3b0764'], boss: true, rad: 32 },
   };
   const ROUND_POOL = [[1,'red'],[2,'blue'],[4,'green'],[7,'yellow'],[10,'pink'],[13,'purple'],[16,'black'],[19,'lead'],[24,'ceramic'],[30,'rainbow']];
+  const BOSSES = ['bossred', 'bossgreen', 'bossblack', 'bossviolet'];
 
   /* ---------- Scimmie ----------
      mode: come spara. Due percorsi di potenziamento da 5 livelli; con un solo percorso oltre il 3° livello si può arrivare al massimo a 3 nell'altro. */
@@ -500,7 +510,8 @@
   /* ---------- Palloni ---------- */
   function drawBalloon(b) {
     const def = BT[b.type];
-    const big = b.type === 'black' || b.type === 'lead' || b.type === 'rainbow' ? 1.12 : 1;
+    if (def.blimp || def.boss) { drawBigEnemy(b, def); return; }
+    const big =b.type === 'black' || b.type === 'lead' || b.type === 'rainbow' ? 1.12 : 1;
     const rx = 15 * big, ry = 19 * big, bx = b.x, by = b.y;
     const wob = Math.sin(now() * 6 + b.s * .2) * 2;
     ctx.beginPath(); ctx.moveTo(bx, by + ry + 4); ctx.quadraticCurveTo(bx + wob, by + ry + 10, bx - wob * .4, by + ry + 18);
@@ -540,12 +551,54 @@
       ctx.fillStyle = f > .5 ? '#22c55e' : '#f05252'; ctx.fillRect(bx - w / 2, by - ry - 10, w * f, 4);
     }
   }
+  // Dirigibile e boss, disegnati con le forme proprie di ciascuno.
+  function drawBigEnemy(b, def) {
+    const x = b.x, y = b.y;
+    const grd = ctx.createRadialGradient(x - 8, y - 10, 3, x, y, 36);
+    grd.addColorStop(0, def.pal[0]); grd.addColorStop(.5, def.pal[1]); grd.addColorStop(1, def.pal[2]);
+    if (def.blimp) {
+      ctx.beginPath(); ctx.moveTo(x - 26, y - 2); ctx.lineTo(x - 42, y - 13); ctx.lineTo(x - 42, y + 13); ctx.lineTo(x - 26, y + 2); ctx.closePath();
+      ctx.fillStyle = def.pal[2]; ctx.fill();
+      ctx.beginPath(); ctx.ellipse(x, y, 32, 14, 0, 0, PI2); ctx.fillStyle = grd; ctx.fill();
+      ctx.strokeStyle = def.pal[2]; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(x - 22, y - 8, 44, 3);
+      ctx.fillStyle = '#334155'; ctx.fillRect(x - 9, y + 12, 18, 8);
+      ctx.fillStyle = '#fbbf24'; ctx.fillRect(x - 6, y + 14, 3, 3); ctx.fillRect(x + 2, y + 14, 3, 3);
+    } else {
+      ctx.fillStyle = def.pal[2];
+      for (let i = 0; i < 10; i++) {
+        const a = i / 10 * PI2;
+        ctx.beginPath();
+        ctx.moveTo(x + Math.cos(a - .18) * 24, y + Math.sin(a - .18) * 24);
+        ctx.lineTo(x + Math.cos(a) * 37, y + Math.sin(a) * 37);
+        ctx.lineTo(x + Math.cos(a + .18) * 24, y + Math.sin(a + .18) * 24);
+        ctx.fill();
+      }
+      ctx.beginPath(); ctx.arc(x, y, 28, 0, PI2); ctx.fillStyle = grd; ctx.fill();
+      ctx.strokeStyle = def.pal[2]; ctx.lineWidth = 2; ctx.stroke();
+      for (const sx of [-1, 1]) {
+        ctx.beginPath(); ctx.ellipse(x + sx * 10, y - 4, 7, 6, 0, 0, PI2); ctx.fillStyle = '#fff'; ctx.fill();
+        ctx.beginPath(); ctx.arc(x + sx * 10 + sx, y - 3, 3, 0, PI2); ctx.fillStyle = '#111'; ctx.fill();
+        ctx.beginPath(); ctx.moveTo(x + sx * 18, y - 15); ctx.lineTo(x + sx * 5, y - 10); ctx.strokeStyle = '#111'; ctx.lineWidth = 2.5; ctx.stroke();
+      }
+      ctx.beginPath(); ctx.moveTo(x - 11, y + 10); ctx.quadraticCurveTo(x, y + 4, x + 11, y + 10); ctx.strokeStyle = '#111'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = '#fff';
+      for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(x + i * 4 - 1.5, y + 7); ctx.lineTo(x + i * 4, y + 11); ctx.lineTo(x + i * 4 + 1.5, y + 7); ctx.fill(); }
+      ctx.fillStyle = '#fbbf24';
+      ctx.beginPath(); ctx.moveTo(x - 11, y - 24); ctx.lineTo(x - 11, y - 34); ctx.lineTo(x - 5, y - 28); ctx.lineTo(x, y - 36); ctx.lineTo(x + 5, y - 28); ctx.lineTo(x + 11, y - 34); ctx.lineTo(x + 11, y - 24); ctx.closePath(); ctx.fill();
+    }
+    if (b.flash > 0) { ctx.beginPath(); ctx.ellipse(x, y, 32, 32, 0, 0, PI2); ctx.fillStyle = `rgba(255,255,255,${(b.flash * .7).toFixed(2)})`; ctx.fill(); }
+    if (b.frozen > 0) { ctx.beginPath(); ctx.arc(x, y, 36, 0, PI2); ctx.strokeStyle = 'rgba(186,230,253,.85)'; ctx.lineWidth = 3; ctx.stroke(); }
+    const w = 40, f = clamp(b.hp / b.maxhp, 0, 1), top = def.blimp ? y - 24 : y - 46;
+    ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(x - w / 2, top, w, 5);
+    ctx.fillStyle = f > .5 ? '#22c55e' : '#f05252'; ctx.fillRect(x - w / 2, top, w * f, 5);
+  }
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
   /* ---------- Round ---------- */
   function buildRound(r) {
     const list = [];
-    const n = Math.min(160, Math.round((8 + r * 2) * S.diff.count));
+    const n = Math.min(160, Math.round((8 + r * 2) * S.diff.count * (S.map.cm || 1)));
     const pool = ROUND_POOL.filter(([from]) => r >= from).map(([, k]) => k);
     let t = 0;
     for (let i = 0; i < n; i++) {
@@ -553,6 +606,9 @@
       list.push({ t, type: pool[Math.min(pool.length - 1, Math.floor(bias * pool.length))] });
       t += Math.max(.35, 1.2 - r * .03);
     }
+    if (r % 5 === 0) list.push({ t: t * .5, type: 'blimp' });
+    if (r % 10 === 0) list.push({ t: t + 1, type: BOSSES[((r / 10) - 1) % BOSSES.length] });
+    list.sort((a, b) => a.t - b.t);
     return list;
   }
   function startRound() {
@@ -666,7 +722,7 @@
       if (b.slowT <= 0) { b.slowT = 0; b.slowF = 1; }
       b.flash = Math.max(0, b.flash - dt * 4);
       const sf = b.frozen > 0 ? .45 : b.slowF;
-      b.s += BT[b.type].sp * S.diff.speed * sf * dt;
+      b.s += BT[b.type].sp * S.diff.speed * (S.map.sm || 1) * sf * dt;
       const p = posAt(Math.max(0, b.s));
       b.x = p.x; b.y = p.y;
     }
@@ -713,7 +769,7 @@
       for (const b of S.balloons) {
         if (p.dead || p.hit.has(b) || b.s < 0 || b.hp <= 0) continue;
         if (p.sharp && BT[b.type].sharpImmune) continue;
-        if (Math.hypot(b.x - p.x, b.y - p.y) < 20) {
+        if (Math.hypot(b.x - p.x, b.y - p.y) < 20 + (BT[b.type].rad || 0)) {
           p.hit.add(b);
           if (p.glue) { b.slowT = Math.max(b.slowT, p.glue); b.slowF = .5; }
           if (p.kind === 'missile') { explode(p.x, p.y, p.aoe, p.dmg); p.dead = true; break; }
@@ -840,6 +896,7 @@
     neve: { col: '#ffffff', vx: -10, vy: 28, r: 2, n: 40 },
     giungla: { col: 'rgba(190,255,150,.45)', vx: 6, vy: 4, r: 1.6, n: 14 },
     citta: { col: 'rgba(250,240,170,.5)', vx: 2, vy: -3, r: 1.4, n: 18 },
+    tempesta: { col: 'rgba(186,230,253,.55)', vx: -30, vy: 220, r: 1, n: 50 },
   };
   const AMB_SEEDS = Array.from({ length: 60 }, (_, i) => [rng(i + 7)(), rng(i + 99)()]);
   const mod = (v, m) => ((v % m) + m) % m;
