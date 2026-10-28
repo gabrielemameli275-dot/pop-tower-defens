@@ -30,6 +30,15 @@
   button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
   #rot { height: 100%; }
+  /* Telefono in verticale: il gioco viene ruotato di 90 gradi e mostrato in orizzontale. */
+  @media (orientation: portrait) {
+    #rot {
+      position: fixed; top: 0; left: 0;
+      width: 100vh; height: 100vw;
+      transform-origin: 0 0;
+      transform: translateX(100vw) rotate(90deg);
+    }
+  }
   .app {
     height: 100%; padding: 8px 12px; display: grid; gap: 10px;
     grid-template-columns: minmax(0, 1fr) minmax(250px, 320px);
