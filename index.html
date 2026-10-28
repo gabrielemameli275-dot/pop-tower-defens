@@ -1,0 +1,527 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Pop Tower Defense</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap">
+<style>
+  /* Layout: una colonna. Mappa in alto, scelta torri in basso. Tema scuro fisso. */
+  :root {
+    color-scheme: dark;
+    --bg: #0d1116;
+    --panel: #171d26;
+    --panel-2: #1f2733;
+    --line: rgba(255, 255, 255, .08);
+    --fg: #e9eef5;
+    --muted: #8b97a8;
+    --gold: #f5c542;
+    --danger: #f05252;
+    --ok: #34d399;
+    --display: "Fredoka", "Trebuchet MS", system-ui, sans-serif;
+    --text: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.4 var(--text);
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+    min-height: 100vh; -webkit-tap-highlight-color: transparent;
+  }
+  .app { max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; padding-block: 12px 18px; min-width: 0; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  button:disabled { opacity: .4; cursor: default; }
+  button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+  .hud { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px 12px; min-width: 88px; }
+  .stat span { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .stat b { font: 600 22px/1.1 var(--display); font-variant-numeric: tabular-nums; }
+  .ctrl { margin-left: auto; display: flex; gap: 8px; }
+  .btn { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; font-weight: 600; }
+  .btn.main { background: var(--gold); color: #1b1505; border-color: transparent; font: 600 16px var(--display); }
+  .btn.on { border-color: var(--gold); color: var(--gold); }
+
+  .board { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+  canvas { display: block; width: 100%; height: auto; aspect-ratio: 960 / 600; touch-action: manipulation; cursor: crosshair; }
+
+  .shop { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .tw { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 10px 6px; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+  .tw i { width: 26px; height: 26px; border-radius: 50%; background: var(--c); box-shadow: inset 0 -4px 0 rgba(0, 0, 0, .25); }
+  .tw span { font-weight: 600; }
+  .tw small { color: var(--gold); font-variant-numeric: tabular-nums; }
+  .tw.on { border-color: var(--gold); background: var(--panel-2); }
+
+  .sel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .sel[hidden] { display: none; }
+  .sel h3 { margin: 0; font: 600 18px var(--display); }
+  .sel p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  .sel .acts { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .msg { margin: 0; min-height: 1.4em; color: var(--muted); font-size: 13px; }
+  .msg.bad { color: var(--danger); }
+  .msg.good { color: var(--ok); }
+  @media (max-width: 420px) { .ctrl { margin-left: 0; width: 100%; } .ctrl .btn { flex: 1; } }
+</style>
+
+<main class="app">
+  <header class="hud">
+    <div class="stat"><span>Vite</span><b id="lives">150</b></div>
+    <div class="stat"><span>Soldi</span><b id="cash">650</b></div>
+    <div class="stat"><span>Round</span><b id="round">0 / 30</b></div>
+    <div class="ctrl">
+      <button class="btn main" id="play" type="button">Via il round</button>
+      <button class="btn" id="speed" type="button" aria-label="Velocità">×1</button>
+      <button class="btn" id="pause" type="button" aria-label="Pausa">Pausa</button>
+    </div>
+  </header>
+
+  <div class="board"><canvas id="cv" width="960" height="600" aria-label="Campo di gioco"></canvas></div>
+
+  <section class="shop" aria-label="Torri">
+    <button class="tw" type="button" data-k="dart" style="--c:#f97316"><i></i><span>Dardo</span><small>200</small></button>
+    <button class="tw" type="button" data-k="tack" style="--c:#a855f7"><i></i><span>Puntine</span><small>380</small></button>
+    <button class="tw" type="button" data-k="bomb" style="--c:#64748b"><i></i><span>Bomba</span><small>600</small></button>
+    <button class="tw" type="button" data-k="ice" style="--c:#38bdf8"><i></i><span>Gelo</span><small>450</small></button>
+  </section>
+
+  <section class="sel" id="sel" hidden>
+    <div>
+      <h3 id="selName">Torre</h3>
+      <p id="selInfo"></p>
+    </div>
+    <div class="acts">
+      <button class="btn" id="upBtn" type="button">Potenzia</button>
+      <button class="btn" id="sellBtn" type="button">Vendi</button>
+    </div>
+  </section>
+
+  <p class="msg" id="msg" role="status">Scegli una torre, poi tocca il prato per piazzarla.</p>
+</main>
+
+<script>
+(() => {
+  /* ---------- Mappa ---------- */
+  const W = 960, H = 600, T = 60;
+  const WP = [[-1, 2], [3, 2], [3, 6], [7, 6], [7, 1], [11, 1], [11, 7], [14, 7], [14, 4], [17, 4]];
+  const PTS = WP.map(([c, r]) => ({ x: c * T + T / 2, y: r * T + T / 2 }));
+  const SEG = [];
+  let TOTAL = 0;
+  for (let i = 0; i < PTS.length - 1; i++) {
+    const a = PTS[i], b = PTS[i + 1];
+    const L = Math.hypot(b.x - a.x, b.y - a.y);
+    SEG.push({ a, b, L, start: TOTAL });
+    TOTAL += L;
+  }
+  function posAt(s) {
+    for (const g of SEG) {
+      if (s <= g.start + g.L) {
+        const t = Math.max(0, (s - g.start) / g.L);
+        return { x: g.a.x + (g.b.x - g.a.x) * t, y: g.a.y + (g.b.y - g.a.y) * t };
+      }
+    }
+    return PTS[PTS.length - 1];
+  }
+  function distSeg(px, py, a, b) {
+    const vx = b.x - a.x, vy = b.y - a.y;
+    const t = Math.max(0, Math.min(1, ((px - a.x) * vx + (py - a.y) * vy) / (vx * vx + vy * vy)));
+    return Math.hypot(px - (a.x + vx * t), py - (a.y + vy * t));
+  }
+  const onPath = (x, y) => SEG.some((g) => distSeg(x, y, g.a, g.b) < 42);
+
+  /* ---------- Dati ---------- */
+  const BT = {
+    red:    { hp: 1, sp: 70,  c: '#ef4444', cash: 1, lives: 1 },
+    blue:   { hp: 2, sp: 95,  c: '#3b82f6', cash: 2, lives: 2 },
+    green:  { hp: 3, sp: 115, c: '#22c55e', cash: 3, lives: 3 },
+    yellow: { hp: 4, sp: 140, c: '#facc15', cash: 4, lives: 4 },
+    pink:   { hp: 5, sp: 165, c: '#ec4899', cash: 5, lives: 5 },
+  };
+  const TD = {
+    dart: { name: 'Dardo', cost: 200, col: '#f97316', desc: 'Un dardo alla volta, più lontano dei puntini.' },
+    tack: { name: 'Puntine', cost: 380, col: '#a855f7', desc: 'Lancia puntine in tutte le direzioni.' },
+    bomb: { name: 'Bomba', cost: 600, col: '#64748b', desc: 'Esplode in un’area e colpisce tutto intorno.' },
+    ice:  { name: 'Gelo', cost: 450, col: '#38bdf8', desc: 'Congela i palloni in raggio: vanno più piano.' },
+  };
+  const MAXLVL = 3;
+  function stats(t) {
+    const L = t.lvl;
+    switch (t.k) {
+      case 'dart': return { range: 150 + L * 18, cd: 0.9 * Math.pow(0.8, L), dmg: 1 + (L >= 2 ? 1 : 0), pierce: 1 + L };
+      case 'tack': return { range: 95 + L * 10, cd: 1.0 * Math.pow(0.8, L), dmg: 1, pierce: 1 + L };
+      case 'bomb': return { range: 135 + L * 8, cd: 1.4 * Math.pow(0.85, L), dmg: 2 + L, aoe: 58 + L * 12 };
+      case 'ice':  return { range: 115 + L * 14, cd: 1.3 * Math.pow(0.85, L), freeze: 1.6 + L * 0.8 };
+    }
+  }
+  const upCost = (t) => Math.round(TD[t.k].cost * 0.6 * (t.lvl + 1) / 10) * 10;
+
+  /* ---------- Stato ---------- */
+  const S = {
+    cash: 650, lives: 150, round: 0, active: false, clock: 0, spawns: [],
+    balloons: [], towers: [], projs: [], fx: [], speed: 1, paused: false,
+    place: null, sel: null, hover: null, over: false, won: false,
+  };
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const $ = (id) => document.getElementById(id);
+
+  function say(text, cls = '') {
+    const m = $('msg');
+    m.textContent = text;
+    m.className = 'msg ' + cls;
+  }
+
+  function buildRound(r) {
+    const list = [];
+    const n = 8 + r * 2;
+    const pool = ['red'];
+    if (r >= 2) pool.push('blue');
+    if (r >= 4) pool.push('green');
+    if (r >= 7) pool.push('yellow');
+    if (r >= 11) pool.push('pink');
+    let t = 0;
+    for (let i = 0; i < n; i++) {
+      const bias = Math.random() * Math.random();
+      const k = pool[Math.min(pool.length - 1, Math.floor(bias * pool.length))];
+      list.push({ t, type: k });
+      t += Math.max(0.4, 1.2 - r * 0.03);
+    }
+    return list;
+  }
+
+  function startRound() {
+    if (S.active || S.over || S.won) return;
+    S.round++;
+    S.spawns = buildRound(S.round);
+    S.clock = 0;
+    S.active = true;
+    say('Round ' + S.round + ' in arrivo.');
+  }
+
+  function canBuild(x, y) {
+    const col = Math.floor(x / T), row = Math.floor(y / T);
+    if (col < 0 || col > 15 || row < 0 || row > 9) return false;
+    const cx = col * T + T / 2, cy = row * T + T / 2;
+    if (onPath(cx, cy)) return false;
+    return !S.towers.some((t) => Math.hypot(t.x - cx, t.y - cy) < 50);
+  }
+
+  function fire(t, target) {
+    const st = stats(t);
+    const d = TD[t.k];
+    if (t.k === 'ice') {
+      for (const b of S.balloons) {
+        if (Math.hypot(b.x - t.x, b.y - t.y) <= st.range) b.frozen = Math.max(b.frozen, st.freeze);
+      }
+      S.fx.push({ kind: 'ice', x: t.x, y: t.y, r: 0, max: st.range, t: 0, life: .5 });
+      return;
+    }
+    if (t.k === 'tack') {
+      for (let i = 0; i < 8; i++) {
+        const a = i * Math.PI / 4;
+        S.projs.push({ x: t.x, y: t.y, vx: Math.cos(a) * 520, vy: Math.sin(a) * 520, life: st.range / 520, dmg: st.dmg, pierce: st.pierce, hit: new Set(), col: d.col, kind: 'pellet' });
+      }
+      return;
+    }
+    const dx = target.x - t.x, dy = target.y - t.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    if (t.k === 'bomb') {
+      const speed = 320;
+      S.projs.push({ x: t.x, y: t.y, vx: dx / dist * speed, vy: dy / dist * speed, life: dist / speed, dmg: st.dmg, aoe: st.aoe, kind: 'bomb', hit: new Set(), col: '#111827' });
+      return;
+    }
+    S.projs.push({ x: t.x, y: t.y, vx: dx / dist * 560, vy: dy / dist * 560, life: 1.1, dmg: st.dmg, pierce: st.pierce, hit: new Set(), col: '#fde68a', kind: 'dart' });
+  }
+
+  function explode(x, y, r, dmg) {
+    for (const b of S.balloons) {
+      if (Math.hypot(b.x - x, b.y - y) <= r + 17) b.hp -= dmg;
+    }
+    S.fx.push({ kind: 'boom', x, y, r: 0, max: r, t: 0, life: .45 });
+  }
+
+  /* ---------- Aggiornamento ---------- */
+  function update(dt) {
+    if (S.active && !S.paused) {
+      S.clock += dt;
+      while (S.spawns.length && S.spawns[0].t <= S.clock) {
+        const sp = S.spawns.shift();
+        S.balloons.push({ type: sp.type, hp: BT[sp.type].hp, s: -20, x: 0, y: 0, frozen: 0, flash: 0 });
+      }
+    }
+    if (S.paused) return;
+
+    for (const b of S.balloons) {
+      b.s += BT[b.type].sp * (b.frozen > 0 ? .45 : 1) * dt;
+      b.frozen -= dt;
+      b.flash = Math.max(0, b.flash - dt * 4);
+      const p = posAt(Math.max(0, b.s));
+      b.x = p.x; b.y = p.y;
+    }
+
+    for (const t of S.towers) {
+      t.cool -= dt;
+      if (t.cool > 0) continue;
+      const st = stats(t);
+      let target = null;
+      for (const b of S.balloons) {
+        if (b.s < 0) continue;
+        if (Math.hypot(b.x - t.x, b.y - t.y) <= st.range + 17 && (!target || b.s > target.s)) target = b;
+      }
+      if (!target && t.k !== 'tack') continue;
+      if (t.k === 'tack' && !S.balloons.some((b) => b.s >= 0 && Math.hypot(b.x - t.x, b.y - t.y) <= st.range + 17)) continue;
+      fire(t, target);
+      t.cool = st.cd;
+      t.recoil = .12;
+    }
+
+    for (const p of S.projs) {
+      p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt;
+      if (p.kind === 'bomb') {
+        if (p.life <= 0) { explode(p.x, p.y, p.aoe, p.dmg); p.dead = true; }
+        continue;
+      }
+      for (const b of S.balloons) {
+        if (p.hit.has(b) || p.dead || b.hp <= 0) continue;
+        if (Math.hypot(b.x - p.x, b.y - p.y) < 20) {
+          b.hp -= p.dmg; b.flash = 1; p.hit.add(b);
+          p.pierce--;
+          if (p.pierce <= 0) { p.dead = true; break; }
+        }
+      }
+      if (p.life <= 0) p.dead = true;
+    }
+    S.projs = S.projs.filter((p) => !p.dead);
+
+    for (const b of S.balloons) {
+      if (b.hp <= 0 && !b.gone) {
+        b.gone = true;
+        S.cash += BT[b.type].cash;
+        S.fx.push({ kind: 'pop', x: b.x, y: b.y, r: 0, max: 26, t: 0, life: .3, col: BT[b.type].c });
+      }
+    }
+    S.balloons = S.balloons.filter((b) => {
+      if (b.gone) return false;
+      if (b.s >= TOTAL) {
+        S.lives -= BT[b.type].lives;
+        S.fx.push({ kind: 'leak', x: PTS[PTS.length - 1].x, y: PTS[PTS.length - 1].y, r: 0, max: 40, t: 0, life: .5 });
+        if (S.lives <= 0 && !S.over) {
+          S.lives = 0; S.over = true; S.active = false;
+          say('Hai perso. Le torri non sono bastate.', 'bad');
+        }
+        return false;
+      }
+      return true;
+    });
+
+    if (S.active && S.spawns.length === 0 && S.balloons.length === 0 && !S.over) {
+      S.active = false;
+      const bonus = 100 + S.round * 10;
+      S.cash += bonus;
+      if (S.round >= 30) {
+        S.won = true;
+        say('Hai superato tutti i 30 round! 🎉', 'good');
+      } else {
+        say('Round ' + S.round + ' completato: +' + bonus + ' soldi.', 'good');
+      }
+    }
+
+    for (const f of S.fx) f.t += dt;
+    S.fx = S.fx.filter((f) => f.t < f.life);
+    for (const f of S.fx) f.r = (f.t / f.life) * f.max;
+    for (const t of S.towers) t.recoil = Math.max(0, (t.recoil || 0) - dt);
+  }
+
+  /* ---------- Disegno ---------- */
+  function draw() {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+
+    // prato a riquadri
+    for (let r = 0; r < 10; r++) for (let c = 0; c < 16; c++) {
+      ctx.fillStyle = (r + c) % 2 ? '#3f7f3a' : '#43873e';
+      ctx.fillRect(c * T, r * T, T, T);
+    }
+
+    // sentiero
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    const trace = () => { ctx.beginPath(); ctx.moveTo(PTS[0].x, PTS[0].y); for (const p of PTS.slice(1)) ctx.lineTo(p.x, p.y); };
+    trace(); ctx.strokeStyle = '#8a6a3b'; ctx.lineWidth = 56; ctx.stroke();
+    trace(); ctx.strokeStyle = '#d7b47a'; ctx.lineWidth = 44; ctx.stroke();
+
+    // anteprima piazzamento e raggio della torre selezionata
+    const showRange = (x, y, range, col) => {
+      ctx.beginPath(); ctx.arc(x, y, range, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,.07)'; ctx.fill();
+      ctx.strokeStyle = col; ctx.setLineDash([6, 6]); ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([]);
+    };
+    if (S.place && S.hover) {
+      const col = Math.floor(S.hover.x / T), row = Math.floor(S.hover.y / T);
+      const cx = col * T + T / 2, cy = row * T + T / 2;
+      const ok = canBuild(S.hover.x, S.hover.y) && S.cash >= TD[S.place].cost;
+      const range = stats({ k: S.place, lvl: 0 }).range;
+      showRange(cx, cy, range, ok ? '#fff' : '#f05252');
+    }
+    if (S.sel) showRange(S.sel.x, S.sel.y, stats(S.sel).range, '#f5c542');
+
+    // torri
+    for (const t of S.towers) {
+      const d = TD[t.k];
+      const rk = t.recoil ? 1 - t.recoil * 2 : 1;
+      ctx.beginPath(); ctx.arc(t.x, t.y + 4, 24, 0, Math.PI * 2); ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fill();
+      ctx.beginPath(); ctx.arc(t.x, t.y, 22 * rk, 0, Math.PI * 2); ctx.fillStyle = d.col; ctx.fill();
+      ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.stroke();
+      ctx.beginPath(); ctx.arc(t.x - 6, t.y - 7, 6, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fill();
+      for (let i = 0; i < t.lvl; i++) {
+        ctx.beginPath(); ctx.arc(t.x - 10 + i * 10, t.y + 32, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#f5c542'; ctx.fill();
+      }
+      if (S.sel === t) {
+        ctx.beginPath(); ctx.arc(t.x, t.y, 28, 0, Math.PI * 2);
+        ctx.strokeStyle = '#f5c542'; ctx.lineWidth = 3; ctx.stroke();
+      }
+    }
+
+    // palloncini
+    for (const b of S.balloons) {
+      if (b.s < 0) continue;
+      const def = BT[b.type];
+      ctx.beginPath(); ctx.moveTo(b.x, b.y + 18); ctx.lineTo(b.x + 3, b.y + 34);
+      ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(b.x, b.y, 15, 19, 0, 0, Math.PI * 2);
+      ctx.fillStyle = b.flash > 0 ? '#ffffff' : def.c; ctx.fill();
+      ctx.strokeStyle = b.frozen > 0 ? '#bae6fd' : 'rgba(0,0,0,.3)'; ctx.lineWidth = b.frozen > 0 ? 3 : 2; ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(b.x - 5, b.y - 8, 3.5, 5, -.5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,.5)'; ctx.fill();
+    }
+
+    // proiettili
+    for (const p of S.projs) {
+      ctx.beginPath();
+      if (p.kind === 'bomb') { ctx.arc(p.x, p.y, 9, 0, Math.PI * 2); ctx.fillStyle = '#111827'; ctx.fill(); ctx.strokeStyle = '#f97316'; ctx.lineWidth = 2; ctx.stroke(); }
+      else { ctx.arc(p.x, p.y, p.kind === 'dart' ? 4.5 : 3.5, 0, Math.PI * 2); ctx.fillStyle = p.col; ctx.fill(); }
+    }
+
+    // effetti
+    for (const f of S.fx) {
+      const k = f.t / f.life;
+      ctx.globalAlpha = 1 - k;
+      ctx.beginPath(); ctx.arc(f.x, f.y, Math.max(1, f.r), 0, Math.PI * 2);
+      if (f.kind === 'ice') { ctx.strokeStyle = '#7dd3fc'; ctx.lineWidth = 3; ctx.stroke(); }
+      else if (f.kind === 'boom') { ctx.fillStyle = '#fb923c'; ctx.fill(); }
+      else if (f.kind === 'leak') { ctx.strokeStyle = '#f05252'; ctx.lineWidth = 4; ctx.stroke(); }
+      else { ctx.strokeStyle = f.col; ctx.lineWidth = 3; ctx.stroke(); }
+      ctx.globalAlpha = 1;
+    }
+
+    if (S.paused) {
+      ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#e9eef5'; ctx.font = '600 48px Fredoka, system-ui, sans-serif';
+      ctx.textAlign = 'center'; ctx.fillText('In pausa', W / 2, H / 2 + 16);
+      ctx.textAlign = 'start';
+    }
+  }
+
+  /* ---------- Interfaccia ---------- */
+  function renderHud() {
+    $('lives').textContent = S.lives;
+    $('cash').textContent = S.cash;
+    $('round').textContent = S.round + ' / 30';
+    $('speed').textContent = '×' + S.speed;
+    $('pause').textContent = S.paused ? 'Riprendi' : 'Pausa';
+    $('pause').classList.toggle('on', S.paused);
+    $('play').disabled = S.active || S.over || S.won;
+    $('play').textContent = S.active ? 'In corso…' : (S.round === 0 ? 'Via il round' : 'Prossimo round');
+    document.querySelectorAll('.tw').forEach((b) => {
+      const k = b.dataset.k;
+      b.disabled = S.cash < TD[k].cost || S.over || S.won;
+      b.classList.toggle('on', S.place === k);
+    });
+  }
+
+  function renderSel() {
+    const box = $('sel');
+    if (!S.sel) { box.hidden = true; return; }
+    box.hidden = false;
+    const t = S.sel, st = stats(t), d = TD[t.k];
+    $('selName').textContent = d.name + ' · livello ' + t.lvl;
+    const extra = t.k === 'dart' ? 'Dardi: ' + st.dmg + ' danno, perfora ' + st.pierce
+      : t.k === 'tack' ? 'Puntine perforanti: ' + st.pierce
+      : t.k === 'bomb' ? 'Danno ' + st.dmg + ', raggio esplosione ' + st.aoe
+      : 'Congela per ' + st.freeze.toFixed(1) + ' s';
+    $('selInfo').textContent = d.desc + ' ' + extra + '.';
+    const up = $('upBtn');
+    up.disabled = t.lvl >= MAXLVL;
+    up.textContent = t.lvl >= MAXLVL ? 'Livello massimo' : 'Potenzia · ' + upCost(t);
+    up.disabled = up.disabled || S.cash < upCost(t);
+    $('sellBtn').textContent = 'Vendi · +' + refund(t);
+  }
+  const refund = (t) => Math.round(t.spent * 0.7);
+
+  function toCanvas(e) {
+    const r = cv.getBoundingClientRect();
+    return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height };
+  }
+
+  cv.addEventListener('pointermove', (e) => { if (S.place) S.hover = toCanvas(e); });
+  cv.addEventListener('pointerleave', () => { S.hover = null; });
+  cv.addEventListener('pointerdown', (e) => {
+    if (S.over || S.won) return;
+    const p = toCanvas(e);
+    const hit = S.towers.find((t) => Math.hypot(t.x - p.x, t.y - p.y) < 28);
+    if (S.place) {
+      if (hit) { S.sel = hit; S.place = null; renderSel(); return; }
+      const d = TD[S.place];
+      if (!canBuild(p.x, p.y)) { say('Non puoi piazzarla qui: serve spazio libero lontano dal sentiero.', 'bad'); return; }
+      if (S.cash < d.cost) { say('Soldi insufficienti per ' + d.name + '.', 'bad'); return; }
+      const col = Math.floor(p.x / T), row = Math.floor(p.y / T);
+      const t = { k: S.place, x: col * T + T / 2, y: row * T + T / 2, lvl: 0, cool: 0, spent: d.cost, recoil: 0 };
+      S.towers.push(t);
+      S.cash -= d.cost;
+      S.place = null; S.hover = null; S.sel = t;
+      say(d.name + ' piazzata. ' + d.desc, 'good');
+      renderSel();
+      return;
+    }
+    S.sel = hit || null;
+    renderSel();
+  });
+
+  document.querySelectorAll('.tw').forEach((b) => b.addEventListener('click', () => {
+    if (S.over || S.won) return;
+    const k = b.dataset.k;
+    S.place = S.place === k ? null : k;
+    S.sel = null; renderSel();
+    say(S.place ? 'Tocca il prato per piazzare ' + TD[k].name + '.' : 'Piazzamento annullato.');
+  }));
+
+  $('play').addEventListener('click', startRound);
+  $('speed').addEventListener('click', () => { S.speed = S.speed === 1 ? 2 : 1; });
+  $('pause').addEventListener('click', () => { S.paused = !S.paused; });
+  $('upBtn').addEventListener('click', () => {
+    const t = S.sel; if (!t || t.lvl >= MAXLVL) return;
+    const c = upCost(t);
+    if (S.cash < c) { say('Soldi insufficienti per potenziare.', 'bad'); return; }
+    S.cash -= c; t.spent += c; t.lvl++;
+    say(TD[t.k].name + ' potenziata al livello ' + t.lvl + '.', 'good');
+    renderSel();
+  });
+  $('sellBtn').addEventListener('click', () => {
+    const t = S.sel; if (!t) return;
+    S.cash += refund(t);
+    S.towers = S.towers.filter((x) => x !== t);
+    S.sel = null; renderSel();
+    say('Torre venduta.');
+  });
+
+  /* ---------- Ciclo ---------- */
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(.05, (now - last) / 1000);
+    last = now;
+    const steps = S.speed;
+    for (let i = 0; i < steps; i++) update(dt);
+    draw();
+    renderHud();
+    if (S.sel && !$('sel').hidden) renderSel();
+    requestAnimationFrame(frame);
+  }
+  say('Scegli una torre, poi tocca il prato per piazzarla.');
+  requestAnimationFrame(frame);
+})();
+</script>
