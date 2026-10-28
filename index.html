@@ -3,7 +3,7 @@
 <title>Pop Tower Defense</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap">
 <style>
-  /* Tema scuro fisso. Una colonna: mappa, torri, potenziamenti. */
+  /* Tema scuro fisso. Gioco orizzontale: mappa a sinistra, comandi a destra. */
   :root {
     color-scheme: dark;
     --bg: #0d1116;
@@ -11,26 +11,31 @@
     --panel-2: #1f2733;
     --line: rgba(255, 255, 255, .09);
     --fg: #e9eef5;
-    --muted: #8b97a8;
+    --muted: #9aa6b6;
     --gold: #f5c542;
     --danger: #f05252;
     --ok: #34d399;
     --display: "Fredoka", "Trebuchet MS", system-ui, sans-serif;
     --text: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   }
-  * { box-sizing: border-box; }
   [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
   body {
     margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.4 var(--text);
-    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
-    min-height: 100vh; -webkit-tap-highlight-color: transparent;
+    overflow: hidden; -webkit-tap-highlight-color: transparent;
   }
-  .app { max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; padding-block: 12px 18px; min-width: 0; }
   button { font: inherit; color: inherit; cursor: pointer; }
   button:disabled { opacity: .4; cursor: default; }
   button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
-  .hud { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  #rot { height: 100%; }
+  .app {
+    height: 100%; padding: 8px 12px; display: grid; gap: 10px;
+    grid-template-columns: minmax(0, 1fr) minmax(250px, 320px);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .hud { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
   .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px 12px; min-width: 84px; }
   .stat span { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
   .stat b { font: 600 22px/1.1 var(--display); font-variant-numeric: tabular-nums; }
@@ -39,66 +44,48 @@
   .btn.main { background: var(--gold); color: #1b1505; border-color: transparent; font: 600 16px var(--display); }
   .btn.on { border-color: var(--gold); color: var(--gold); }
 
-  .board { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
-  canvas { display: block; width: 100%; height: auto; aspect-ratio: 960 / 600; touch-action: manipulation; cursor: crosshair; }
+  .board { grid-column: 1; grid-row: 2; min-height: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; }
+  canvas { display: block; touch-action: manipulation; cursor: crosshair; }
 
-  .shop { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-  .tw { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 8px 4px; display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; }
-  .tw i { width: 24px; height: 24px; border-radius: 50%; background: var(--c); box-shadow: inset 0 -4px 0 rgba(0, 0, 0, .25); }
-  .tw span { font-weight: 600; font-size: 13px; }
-  .tw small { color: var(--gold); font-variant-numeric: tabular-nums; }
+  .side { grid-column: 2; grid-row: 2; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 2px; }
+  .shop { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .tw { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 6px 8px; display: flex; align-items: center; gap: 8px; min-width: 0; text-align: left; }
+  .tw canvas { width: 46px; height: 46px; flex: 0 0 auto; }
+  .tw .txt { display: flex; flex-direction: column; min-width: 0; }
+  .tw span { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tw small { color: var(--gold); font: 600 15px var(--display); font-variant-numeric: tabular-nums; }
   .tw.on { border-color: var(--gold); background: var(--panel-2); }
 
-  .sel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+  .sel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
   .sel[hidden] { display: none; }
+  .selhead { display: flex; gap: 10px; align-items: center; }
+  .selhead canvas { width: 52px; height: 52px; flex: 0 0 auto; }
   .sel h3 { margin: 0; font: 600 18px var(--display); }
   .sel p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
-  .ups { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .ups { display: grid; grid-template-columns: 1fr; gap: 8px; }
   .up { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; text-align: left; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .up b { font-weight: 600; font-size: 13px; }
   .pips { display: flex; gap: 4px; }
   .pips i { width: 10px; height: 10px; border-radius: 50%; background: rgba(255, 255, 255, .15); }
   .pips i.f { background: var(--gold); }
-  .up small { color: var(--muted); font-size: 12px; }
-  .acts { display: flex; gap: 8px; justify-content: flex-end; }
+  .up small { color: var(--gold); font-size: 13px; font-weight: 600; }
+  .acts { display: flex; justify-content: flex-end; }
 
   .msg { margin: 0; min-height: 1.4em; color: var(--muted); font-size: 13px; }
   .msg.bad { color: var(--danger); }
   .msg.good { color: var(--ok); }
 
-  .overlay { position: fixed; inset: 0; background: rgba(5, 8, 12, .86); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 20; }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 20px; width: min(460px, 100%); display: flex; flex-direction: column; gap: 10px; max-height: 100%; overflow-y: auto; }
-  .card h1 { margin: 0; font: 600 28px var(--display); }
-  .card h2 { margin: 8px 0 0; font: 600 13px var(--text); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
-  .opts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-  .opt { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 10px; text-align: left; min-width: 0; }
+  .overlay { position: fixed; inset: 0; background: rgba(5, 8, 12, .86); display: flex; align-items: center; justify-content: center; padding: 12px; z-index: 20; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 18px; width: min(560px, 100%); display: flex; flex-direction: column; gap: 8px; max-height: 100%; overflow-y: auto; }
+  .card h1 { margin: 0; font: 600 26px var(--display); }
+  .card h2 { margin: 6px 0 0; font: 600 12px var(--text); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .opts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .opt { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; text-align: left; min-width: 0; }
   .opt.on { border-color: var(--gold); }
   .opt b { display: block; font-weight: 600; }
   .opt small { color: var(--muted); font-size: 12px; }
-  .card .btn.main { align-self: stretch; padding: 12px; margin-top: 6px; }
-  #end h1 { font-size: 26px; }
-  .ctrl { margin-left: auto; }
-  .opts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  /* Layout di gioco: mappa a sinistra, comandi a destra. Sempre orizzontale. */
-  html, body { height: 100%; }
-  body { overflow: hidden; }
-  #rot { height: 100%; }
-  .app { height: 100%; max-width: none; padding: 8px 12px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 300px); grid-template-rows: auto minmax(0, 1fr); gap: 10px; }
-  .hud { grid-column: 1 / -1; }
-  .board { grid-column: 1; grid-row: 2; min-height: 0; height: 100%; overflow: hidden; display: flex; align-items: center; justify-content: center; background: var(--panel); }
-  canvas { display: block; width: 100%; height: auto; aspect-ratio: auto; }
-  .side { grid-column: 2; grid-row: 2; min-height: 0; overflow-y: auto; }
-  .shop { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .tw { flex-direction: row; justify-content: flex-start; gap: 8px; padding: 8px 10px; }
-  .tw i { width: 20px; height: 20px; flex: 0 0 auto; }
-  .tw span { flex: 1; text-align: left; }
-  .ups { grid-template-columns: 1fr; }
-  .sel { padding: 10px 12px; }
-  .hud .stat b { font-size: 20px; }
-  /* Telefono in verticale: la pagina viene ruotata di 90 gradi, così il gioco resta orizzontale. */
-  @media (orientation: portrait) {
-    #rot { position: fixed; top: 0; left: 0; width: 100vh; height: 100vw; transform-origin: 0 0; transform: translateX(100vw) rotate(90deg); overflow: hidden; background: var(--bg); }
-  }
+  .card .btn.main { padding: 12px; margin-top: 6px; }
+  #end h1 { font-size: 24px; }
 </style>
 
 <div id="rot">
@@ -109,7 +96,7 @@
     <div class="stat"><span>Round</span><b id="round">0 / 40</b></div>
     <div class="ctrl">
       <button class="btn main" id="play" type="button">Via il round</button>
-      <button class="btn" id="speed" type="button" aria-label="Velocità">×1</button>
+      <button class="btn" id="speed" type="button">×1</button>
       <button class="btn" id="pause" type="button">Pausa</button>
       <button class="btn" id="menu" type="button">Menu</button>
     </div>
@@ -118,21 +105,17 @@
   <div class="board"><canvas id="cv" width="960" height="600" aria-label="Campo di gioco"></canvas></div>
 
   <div class="side">
-  <section class="shop" id="shop" aria-label="Torri"></section>
-
-  <section class="sel" id="sel" hidden>
-    <div>
-      <h3 id="selName">Torre</h3>
-      <p id="selInfo"></p>
-    </div>
-    <div class="ups">
-      <button class="up" id="upA" type="button"></button>
-      <button class="up" id="upB" type="button"></button>
-    </div>
-    <div class="acts"><button class="btn" id="sellBtn" type="button">Vendi</button></div>
-  </section>
-
-  <p class="msg" id="msg" role="status"></p>
+    <section class="shop" id="shop" aria-label="Scimmie"></section>
+    <section class="sel" id="sel" hidden>
+      <div class="selhead"><canvas id="selIcon" width="52" height="52"></canvas>
+        <div><h3 id="selName">Scimmia</h3><p id="selInfo"></p></div></div>
+      <div class="ups">
+        <button class="up" id="upA" type="button"></button>
+        <button class="up" id="upB" type="button"></button>
+      </div>
+      <div class="acts"><button class="btn" id="sellBtn" type="button">Vendi</button></div>
+    </section>
+    <p class="msg" id="msg" role="status"></p>
   </div>
 </main>
 
@@ -154,8 +137,8 @@
     <button class="btn main" id="again" type="button">Nuova partita</button>
   </div>
 </div>
-
 </div>
+
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -176,45 +159,57 @@
     { name: 'Facile', desc: 'Più soldi, meno palloni.', lives: 200, cash: 800, count: .8, hp: 1, cashMul: 1.2, speed: 1 },
     { name: 'Medio', desc: 'L’equilibrio giusto.', lives: 150, cash: 650, count: 1, hp: 1, cashMul: 1, speed: 1 },
     { name: 'Difficile', desc: 'Palloni più resistenti.', lives: 100, cash: 550, count: 1.25, hp: 1.5, cashMul: .9, speed: 1.05 },
-    { name: 'Esperto', desc: 'Pochi soldi e palloni veloci.', lives: 50, cash: 500, count: 1.5, hp: 2, cashMul: .8, speed: 1.12 },
+    { name: 'Esperto', desc: 'Pochi soldi, palloni veloci.', lives: 50, cash: 500, count: 1.5, hp: 2, cashMul: .8, speed: 1.12 },
   ];
 
-  /* ---------- Palloni ---------- */
+  /* ---------- Palloni ----------
+     lead: immune alle punte (dardi, puntine, cecchino, ninja, laser): serve danno da esplosione, fulmine o gelo. */
   const BT = {
-    red:    { hp: 1,  sp: 70,  c: '#ef4444', cash: 1,  lives: 1 },
-    blue:   { hp: 2,  sp: 95,  c: '#3b82f6', cash: 2,  lives: 2 },
-    green:  { hp: 3,  sp: 115, c: '#22c55e', cash: 3,  lives: 3 },
-    yellow: { hp: 4,  sp: 140, c: '#facc15', cash: 4,  lives: 4 },
-    pink:   { hp: 5,  sp: 165, c: '#ec4899', cash: 5,  lives: 5 },
-    black:  { hp: 11, sp: 120, c: '#1f2937', cash: 11, lives: 11 },
+    red:     { hp: 1,  sp: 70,  c: '#ef4444', lives: 1 },
+    blue:    { hp: 2,  sp: 95,  c: '#3b82f6', lives: 2 },
+    green:   { hp: 3,  sp: 115, c: '#22c55e', lives: 3 },
+    yellow:  { hp: 4,  sp: 140, c: '#facc15', lives: 4 },
+    pink:    { hp: 5,  sp: 165, c: '#ec4899', lives: 5 },
+    purple:  { hp: 7,  sp: 180, c: '#a855f7', lives: 6 },
+    black:   { hp: 11, sp: 120, c: '#1f2937', lives: 6, edge: '#6b7280' },
+    lead:    { hp: 12, sp: 60,  c: '#64748b', lives: 8, sharpImmune: true, edge: '#cbd5e1' },
+    ceramic: { hp: 10, sp: 90,  c: '#f1f5f9', lives: 8, edge: '#94a3b8' },
   };
+  const ROUND_POOL = [[1, 'red'], [2, 'blue'], [4, 'green'], [7, 'yellow'], [10, 'pink'], [13, 'purple'], [16, 'black'], [19, 'lead'], [24, 'ceramic']];
 
-  /* ---------- Torri, con due percorsi di potenziamento da 5 livelli ---------- */
-  // Ogni livello modifica le statistiche: dmg, pierce, range (additivi), cd (moltiplicativo), count, aoe, freeze, chain.
+  /* ---------- Scimmie ----------
+     Ogni scimmia ha due percorsi di potenziamento da 5 livelli.
+     Regola: non si possono avere entrambi i percorsi oltre il livello 3. */
   const TD = {
-    dart: { name: 'Dardo', cost: 200, col: '#f97316', range: 150, cd: .9, dmg: 1, pierce: 1, count: 1, desc: 'Un dardo alla volta.',
+    dart: { name: 'Scimmia dardo', cost: 200, col: '#f97316', range: 150, cd: .9, dmg: 1, pierce: 1, count: 1, sharp: true, shot: 'dart', desc: 'Lancia un dardo alla volta.',
       up: [{ name: 'Dardi affilati', e: [{ dmg: 1 }, { pierce: 2 }, { dmg: 1 }, { pierce: 3, range: 20 }, { dmg: 4, pierce: 4 }] },
            { name: 'Lancio rapido', e: [{ cd: .8 }, { cd: .8, range: 20 }, { cd: .7 }, { cd: .6, dmg: 1 }, { cd: .5, dmg: 2, range: 40 }] }] },
-    sniper: { name: 'Cecchino', cost: 350, col: '#84cc16', range: 430, cd: 2.4, dmg: 3, pierce: 1, count: 1, desc: 'Lungo raggio, colpo potente.',
+    sniper: { name: 'Cecchino', cost: 350, col: '#65a30d', range: 430, cd: 2.4, dmg: 3, pierce: 1, count: 1, sharp: true, shot: 'sniper', desc: 'Raggio enorme e colpo potente.',
       up: [{ name: 'Mira precisa', e: [{ dmg: 2 }, { range: 60, dmg: 2 }, { dmg: 4 }, { dmg: 6, pierce: 2 }, { dmg: 12 }] },
            { name: 'Colpo rapido', e: [{ cd: .8 }, { cd: .75, pierce: 1 }, { cd: .7, dmg: 2 }, { cd: .6, pierce: 2 }, { cd: .4, dmg: 6 }] }] },
-    tack: { name: 'Puntine', cost: 380, col: '#a855f7', range: 95, cd: 1, dmg: 1, pierce: 1, count: 4, desc: 'Puntine in tutte le direzioni.',
+    tack: { name: 'Puntine', cost: 380, col: '#a855f7', range: 95, cd: 1, dmg: 1, pierce: 1, count: 4, sharp: true, desc: 'Lancia puntine in tutte le direzioni.',
       up: [{ name: 'Puntine tossiche', e: [{ dmg: 1 }, { pierce: 1, dmg: 1 }, { count: 2 }, { dmg: 2, pierce: 2 }, { count: 2, dmg: 3 }] },
            { name: 'Raggio lungo', e: [{ range: 20 }, { range: 20, cd: .9 }, { range: 30, cd: .85 }, { range: 40, pierce: 1 }, { range: 60, cd: .6, dmg: 2 }] }] },
-    boomerang: { name: 'Boomerang', cost: 420, col: '#eab308', range: 125, cd: 1.2, dmg: 1, pierce: 3, count: 3, desc: 'Ventaglio di lame che colpiscono più palloni.',
+    boomerang: { name: 'Boomerang', cost: 420, col: '#eab308', range: 125, cd: 1.2, dmg: 1, pierce: 3, count: 3, sharp: true, desc: 'Ventaglio di lame.',
       up: [{ name: 'Doppio ritorno', e: [{ count: 1 }, { count: 1 }, { dmg: 2 }, { count: 2, pierce: 2 }, { dmg: 3, count: 3 }] },
            { name: 'Rotazione veloce', e: [{ cd: .8 }, { cd: .7, range: 30 }, { cd: .6, pierce: 1 }, { cd: .5, dmg: 1 }, { cd: .35, dmg: 2, range: 60 }] }] },
-    bomb: { name: 'Bomba', cost: 600, col: '#64748b', range: 135, cd: 1.4, dmg: 2, pierce: 1, count: 1, aoe: 58, desc: 'Esplode in un’area.',
+    bomb: { name: 'Bombardiere', cost: 600, col: '#64748b', range: 135, cd: 1.4, dmg: 2, pierce: 1, count: 1, aoe: 58, desc: 'Lancia bombe che esplodono in un’area.',
       up: [{ name: 'Esplosivo', e: [{ aoe: 20 }, { dmg: 2 }, { aoe: 30, dmg: 2 }, { aoe: 40 }, { aoe: 60, dmg: 5 }] },
            { name: 'Grappolo', e: [{ cd: .85 }, { cd: .85, aoe: 10 }, { count: 1 }, { cd: .7, count: 1 }, { count: 2, dmg: 3 }] }] },
-    ice: { name: 'Gelo', cost: 450, col: '#38bdf8', range: 115, cd: 1.3, dmg: 0, pierce: 1, count: 1, freeze: 1.6, desc: 'Congela i palloni in raggio.',
+    ice: { name: 'Scimmia gelo', cost: 450, col: '#38bdf8', range: 115, cd: 1.3, dmg: 0, pierce: 1, count: 1, freeze: 1.6, desc: 'Congela i palloni in raggio.',
       up: [{ name: 'Gelo profondo', e: [{ freeze: .8 }, { freeze: 1 }, { range: 30 }, { freeze: 1.5 }, { freeze: 3, range: 40 }] },
-           { name: 'Ghiaccio duro', e: [{ dmg: 1 }, { dmg: 1, cd: .9 }, { dmg: 2, pierce: 1 }, { cd: .8, dmg: 2 }, { dmg: 5, cd: .6 }] }] },
+           { name: 'Ghiaccio duro', e: [{ dmg: 1 }, { dmg: 1, cd: .9 }, { dmg: 2 }, { cd: .8, dmg: 2 }, { dmg: 5, cd: .6 }] }] },
     wizard: { name: 'Mago', cost: 500, col: '#7c3aed', range: 130, cd: 1, dmg: 1, pierce: 1, count: 1, chain: 0, desc: 'Fulmine che salta da un pallone all’altro.',
       up: [{ name: 'Fulmine a catena', e: [{ chain: 1 }, { chain: 2 }, { dmg: 1 }, { chain: 3 }, { chain: 4, dmg: 2 }] },
            { name: 'Potere magico', e: [{ cd: .85 }, { cd: .8, range: 20 }, { dmg: 2 }, { cd: .6 }, { cd: .5, dmg: 4, range: 40 }] }] },
+    ninja: { name: 'Ninja', cost: 500, col: '#111827', range: 150, cd: .6, dmg: 1, pierce: 2, count: 1, sharp: true, shot: 'dart', desc: 'Veloce, perfora più palloni.',
+      up: [{ name: 'Shuriken', e: [{ dmg: 1 }, { pierce: 1 }, { dmg: 1, pierce: 1 }, { pierce: 2, range: 20 }, { dmg: 3, pierce: 3 }] },
+           { name: 'Ninja veloce', e: [{ cd: .85 }, { cd: .8, range: 20 }, { cd: .75 }, { cd: .6, dmg: 1 }, { cd: .4, dmg: 2, range: 40 }] }] },
+    laser: { name: 'Super laser', cost: 1200, col: '#ef4444', range: 175, cd: .2, dmg: 1, pierce: 4, count: 1, sharp: true, shot: 'laser', desc: 'Raffica di raggi che perforano molti palloni.',
+      up: [{ name: 'Raggio potente', e: [{ dmg: 1 }, { dmg: 2, pierce: 2 }, { dmg: 3 }, { dmg: 4, pierce: 4 }, { dmg: 8, range: 40 }] },
+           { name: 'Ricarica', e: [{ cd: .85 }, { cd: .8, range: 15 }, { cd: .75 }, { cd: .6, pierce: 2 }, { cd: .4, range: 30 }] }] },
   };
-  const ORDER = ['dart', 'sniper', 'tack', 'boomerang', 'bomb', 'ice', 'wizard'];
+  const ORDER = ['dart', 'sniper', 'tack', 'boomerang', 'bomb', 'ice', 'wizard', 'ninja', 'laser'];
   const TIER_MUL = [.5, .8, 1.2, 2.2, 4];
   const MAXT = 5;
 
@@ -227,7 +222,6 @@
     return s;
   }
   const tierCost = (k, tier) => Math.round(TD[k].cost * TIER_MUL[tier] / 10) * 10;
-  // Regola: non si possono avere entrambi i percorsi oltre il livello 3.
   function canUp(t, p) {
     const cur = p === 0 ? t.a : t.b;
     const other = p === 0 ? t.b : t.a;
@@ -286,12 +280,7 @@
   function buildRound(r) {
     const list = [];
     const n = Math.round((8 + r * 2) * S.diff.count);
-    const pool = ['red'];
-    if (r >= 2) pool.push('blue');
-    if (r >= 4) pool.push('green');
-    if (r >= 7) pool.push('yellow');
-    if (r >= 11) pool.push('pink');
-    if (r >= 16) pool.push('black');
+    const pool = ROUND_POOL.filter(([from]) => r >= from).map(([, k]) => k);
     let t = 0;
     for (let i = 0; i < n; i++) {
       const bias = Math.random() * Math.random();
@@ -307,6 +296,58 @@
     S.spawns = buildRound(S.round);
     S.clock = 0; S.active = true;
     say('Round ' + S.round + ' in arrivo.');
+  }
+
+  /* ---------- Scimmie disegnate ---------- */
+  // Disegna una scimmia centrata in (0,0). Il cappello o l'accessorio dipende dal tipo.
+  function drawMonkey(c, x, y, k, s = 1) {
+    c.save(); c.translate(x, y); c.scale(s, s);
+    const fur = '#8b5a2b', face = '#f1d3ad', belly = '#e8c39e';
+    c.beginPath(); c.ellipse(0, 22, 17, 6, 0, 0, Math.PI * 2); c.fillStyle = 'rgba(0,0,0,.35)'; c.fill();
+    c.beginPath(); c.ellipse(0, 7, 15, 16, 0, 0, Math.PI * 2); c.fillStyle = fur; c.fill();
+    c.beginPath(); c.ellipse(0, 11, 9, 10, 0, 0, Math.PI * 2); c.fillStyle = belly; c.fill();
+    c.beginPath(); c.arc(-13, 0, 5, 0, Math.PI * 2); c.arc(13, 0, 5, 0, Math.PI * 2); c.fillStyle = fur; c.fill();
+    c.beginPath(); c.arc(-13, -10, 6.5, 0, Math.PI * 2); c.arc(13, -10, 6.5, 0, Math.PI * 2); c.fillStyle = fur; c.fill();
+    c.beginPath(); c.arc(-13, -10, 3.5, 0, Math.PI * 2); c.arc(13, -10, 3.5, 0, Math.PI * 2); c.fillStyle = face; c.fill();
+    c.beginPath(); c.arc(0, -9, 14, 0, Math.PI * 2); c.fillStyle = fur; c.fill();
+    c.beginPath(); c.ellipse(0, -5, 9.5, 8.5, 0, 0, Math.PI * 2); c.fillStyle = face; c.fill();
+    c.fillStyle = '#111'; c.beginPath(); c.arc(-4, -8, 2, 0, Math.PI * 2); c.arc(4, -8, 2, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#fff'; c.beginPath(); c.arc(-3.4, -8.6, .6, 0, Math.PI * 2); c.arc(4.6, -8.6, .6, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = '#5b3517'; c.lineWidth = 1.6; c.beginPath(); c.arc(0, -2, 3.2, .25, Math.PI - .25); c.stroke();
+    c.beginPath(); c.ellipse(0, -2, 1.4, 1, 0, 0, Math.PI * 2); c.fillStyle = '#7a3e1d'; c.fill();
+    const col = TD[k].col;
+    switch (k) {
+      case 'dart': // fascia arancione
+        c.fillStyle = col; c.fillRect(-14, -18, 28, 5);
+        c.beginPath(); c.moveTo(14, -17); c.lineTo(22, -22); c.lineTo(20, -14); c.fill(); break;
+      case 'sniper': // berretto verde con visiera
+        c.beginPath(); c.arc(0, -17, 11, Math.PI, 0); c.fillStyle = col; c.fill();
+        c.fillRect(-12, -18, 26, 3); c.fillStyle = '#365314'; c.fillRect(6, -18, 12, 3); break;
+      case 'tack': // corona di punte viola
+        c.fillStyle = col;
+        for (const px of [-10, 0, 10]) { c.beginPath(); c.moveTo(px - 5, -18); c.lineTo(px, -29); c.lineTo(px + 5, -18); c.fill(); }
+        break;
+      case 'boomerang': // fascia gialla a forma di boomerang
+        c.strokeStyle = col; c.lineWidth = 4; c.beginPath(); c.arc(0, -9, 14.5, Math.PI * 1.15, Math.PI * 1.85); c.stroke(); break;
+      case 'bomb': // elmetto grigio
+        c.beginPath(); c.arc(0, -10, 15, Math.PI, 0); c.fillStyle = col; c.fill();
+        c.fillStyle = '#334155'; c.fillRect(-15, -10, 30, 3); break;
+      case 'ice': // berretto azzurro con pon pon
+        c.beginPath(); c.arc(0, -17, 11, Math.PI, 0); c.fillStyle = col; c.fill();
+        c.beginPath(); c.arc(0, -28, 4, 0, Math.PI * 2); c.fillStyle = '#e0f2fe'; c.fill(); break;
+      case 'wizard': // cappello da mago viola con stelle
+        c.beginPath(); c.moveTo(-16, -15); c.lineTo(16, -15); c.lineTo(0, -38); c.closePath(); c.fillStyle = col; c.fill();
+        c.fillStyle = '#fde047'; c.beginPath(); c.arc(4, -26, 2, 0, Math.PI * 2); c.fill();
+        c.fillStyle = '#4c1d95'; c.fillRect(-17, -16, 34, 3); break;
+      case 'ninja': // fascia nera con codino rosso
+        c.fillStyle = '#0b0f19'; c.fillRect(-15, -17, 30, 6);
+        c.beginPath(); c.moveTo(14, -16); c.lineTo(26, -12); c.lineTo(15, -8); c.fillStyle = '#dc2626'; c.fill(); break;
+      case 'laser': // visore rosso
+        c.fillStyle = '#334155'; c.fillRect(-15, -15, 30, 4);
+        c.fillStyle = col; c.fillRect(-11, -13, 22, 5);
+        c.shadowColor = col; c.shadowBlur = 8; c.fillStyle = '#fecaca'; c.fillRect(-7, -12, 14, 2); c.shadowBlur = 0; break;
+    }
+    c.restore();
   }
 
   /* ---------- Attacchi ---------- */
@@ -349,22 +390,24 @@
       for (let i = 0; i < n; i++) {
         const a = t.k === 'tack' ? i * spread : aimA + (i - (n - 1) / 2) * spread;
         const sp = t.k === 'tack' ? 520 : 480;
-        S.projs.push({ x: t.x, y: t.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: st.range / sp, dmg: st.dmg, pierce: st.pierce, hit: new Set(), col: d.col, kind: 'pellet' });
+        S.projs.push({ x: t.x, y: t.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: st.range / sp, dmg: st.dmg, pierce: st.pierce, hit: new Set(), col: d.col, kind: 'pellet', sharp: true });
       }
       return;
     }
     if (t.k === 'bomb') {
       for (let i = 0; i < st.count; i++) {
-        const tx = target.x + (st.count > 1 ? (Math.random() - .5) * 70 : 0);
-        const ty = target.y + (st.count > 1 ? (Math.random() - .5) * 70 : 0);
+        const spread = st.count > 1 ? 70 : 0;
+        const tx = target.x + (Math.random() - .5) * spread;
+        const ty = target.y + (Math.random() - .5) * spread;
         const dx = tx - t.x, dy = ty - t.y, dist = Math.hypot(dx, dy) || 1, speed = 320;
         S.projs.push({ x: t.x, y: t.y, vx: dx / dist * speed, vy: dy / dist * speed, life: dist / speed, dmg: st.dmg, aoe: st.aoe, kind: 'bomb', hit: new Set(), col: '#111827' });
       }
       return;
     }
-    // dardo e cecchino: un colpo mirato
-    const sp = t.k === 'sniper' ? 900 : 560;
-    S.projs.push({ x: t.x, y: t.y, vx: Math.cos(aimA) * sp, vy: Math.sin(aimA) * sp, life: 1.2, dmg: st.dmg, pierce: st.pierce, hit: new Set(), col: t.k === 'sniper' ? '#d9f99d' : '#fde68a', kind: 'dart' });
+    // dardo, cecchino, ninja e laser: un proiettile diretto verso il bersaglio
+    const sp = d.shot === 'sniper' ? 900 : d.shot === 'laser' ? 1000 : d.shot === 'dart' && t.k === 'ninja' ? 700 : 560;
+    const col = d.shot === 'sniper' ? '#d9f99d' : d.shot === 'laser' ? '#fca5a5' : '#fde68a';
+    S.projs.push({ x: t.x, y: t.y, vx: Math.cos(aimA) * sp, vy: Math.sin(aimA) * sp, life: 1.2, dmg: st.dmg, pierce: st.pierce, hit: new Set(), col, kind: 'dart', sharp: true });
   }
 
   function explode(x, y, r, dmg) {
@@ -378,7 +421,8 @@
       S.clock += dt;
       while (S.spawns.length && S.spawns[0].t <= S.clock) {
         const sp = S.spawns.shift();
-        S.balloons.push({ type: sp.type, hp: Math.ceil(BT[sp.type].hp * S.diff.hp) + Math.floor(S.round / 12), s: -20, x: 0, y: 0, frozen: 0, flash: 0 });
+        const hp = Math.ceil(BT[sp.type].hp * S.diff.hp) + Math.floor(S.round / 12);
+        S.balloons.push({ type: sp.type, hp, maxhp: hp, s: -20, x: 0, y: 0, frozen: 0, flash: 0 });
       }
     }
     if (S.paused) return;
@@ -414,6 +458,7 @@
       }
       for (const b of S.balloons) {
         if (p.dead || p.hit.has(b) || b.s < 0 || b.hp <= 0) continue;
+        if (p.sharp && BT[b.type].sharpImmune) continue;
         if (Math.hypot(b.x - p.x, b.y - p.y) < 20) {
           b.hp -= p.dmg; b.flash = 1; p.hit.add(b);
           p.pierce--;
@@ -427,7 +472,7 @@
     for (const b of S.balloons) {
       if (b.hp <= 0 && !b.gone) {
         b.gone = true;
-        S.cash += Math.round(BT[b.type].cash * S.diff.cashMul);
+        S.cash += Math.round(BT[b.type].lives * S.diff.cashMul);
         S.fx.push({ kind: 'pop', x: b.x, y: b.y, t: 0, life: .3, max: 26, col: BT[b.type].c });
       }
     }
@@ -466,6 +511,23 @@
   }
 
   /* ---------- Disegno ---------- */
+  function drawBalloon(b) {
+    const def = BT[b.type];
+    const big = b.type === 'black' || b.type === 'lead' ? 1.12 : 1;
+    ctx.beginPath(); ctx.moveTo(b.x, b.y + 19 * big); ctx.lineTo(b.x + 3, b.y + 34);
+    ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(b.x, b.y, 15 * big, 19 * big, 0, 0, Math.PI * 2);
+    ctx.fillStyle = b.flash > 0 ? '#ffffff' : def.c; ctx.fill();
+    ctx.strokeStyle = b.frozen > 0 ? '#bae6fd' : (def.edge || 'rgba(0,0,0,.3)'); ctx.lineWidth = b.frozen > 0 ? 3 : 2; ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(b.x - 5, b.y - 8, 3.5, 5, -.5, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,.5)'; ctx.fill();
+    if (b.hp < b.maxhp) { // barra della vita
+      const w = 26, f = Math.max(0, b.hp / b.maxhp);
+      ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(b.x - w / 2, b.y - 32, w, 4);
+      ctx.fillStyle = f > .5 ? '#22c55e' : '#f05252'; ctx.fillRect(b.x - w / 2, b.y - 32, w * f, 4);
+    }
+  }
+
   function draw() {
     const m = S.map;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -487,43 +549,36 @@
     if (S.place && S.hover) {
       const col = Math.floor(S.hover.x / T), row = Math.floor(S.hover.y / T);
       const cx = col * T + T / 2, cy = row * T + T / 2;
-      const ok = canBuild(S.hover.x, S.hover.y) && S.cash >= TD[S.place].cost;
+      const ok = canBuild(cx, cy) && S.cash >= TD[S.place].cost;
       showRange(cx, cy, stats({ k: S.place, a: 0, b: 0 }).range, ok ? '#fff' : '#f05252');
+      // casella di anteprima e prezzo
+      ctx.fillStyle = ok ? 'rgba(255,255,255,.12)' : 'rgba(240,82,82,.2)';
+      ctx.fillRect(col * T, row * T, T, T);
+      ctx.fillStyle = ok ? '#f5c542' : '#f05252';
+      ctx.font = '700 22px Fredoka, system-ui, sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(TD[S.place].cost, cx, cy - 36);
+      ctx.textAlign = 'start';
     }
     if (S.sel) showRange(S.sel.x, S.sel.y, stats(S.sel).range, '#f5c542');
 
     for (const t of S.towers) {
-      const d = TD[t.k];
-      const rk = t.recoil ? 1 - t.recoil * 2 : 1;
-      ctx.beginPath(); ctx.arc(t.x, t.y + 4, 24, 0, Math.PI * 2); ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fill();
-      ctx.beginPath(); ctx.arc(t.x, t.y, 22 * rk, 0, Math.PI * 2); ctx.fillStyle = d.col; ctx.fill();
-      ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.stroke();
-      ctx.beginPath(); ctx.arc(t.x - 6, t.y - 7, 6, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fill();
+      const rk = t.recoil ? 1 - t.recoil * .5 : 1;
+      ctx.beginPath(); ctx.ellipse(t.x, t.y + 22, 24, 9, 0, 0, Math.PI * 2); ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fill();
+      drawMonkey(ctx, t.x, t.y - 2, t.k, rk);
       const tot = t.a + t.b;
       for (let i = 0; i < Math.min(tot, 10); i++) {
         ctx.beginPath(); ctx.arc(t.x - 22 + i * 5 + 2, t.y + 34, 2.2, 0, Math.PI * 2);
         ctx.fillStyle = '#f5c542'; ctx.fill();
       }
-      if (S.sel === t) { ctx.beginPath(); ctx.arc(t.x, t.y, 28, 0, Math.PI * 2); ctx.strokeStyle = '#f5c542'; ctx.lineWidth = 3; ctx.stroke(); }
+      if (S.sel === t) { ctx.beginPath(); ctx.arc(t.x, t.y, 30, 0, Math.PI * 2); ctx.strokeStyle = '#f5c542'; ctx.lineWidth = 3; ctx.stroke(); }
     }
 
-    for (const b of S.balloons) {
-      if (b.s < 0) continue;
-      const def = BT[b.type];
-      const big = b.type === 'black' ? 1.1 : 1;
-      ctx.beginPath(); ctx.moveTo(b.x, b.y + 19 * big); ctx.lineTo(b.x + 3, b.y + 34);
-      ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 1.5; ctx.stroke();
-      ctx.beginPath(); ctx.ellipse(b.x, b.y, 15 * big, 19 * big, 0, 0, Math.PI * 2);
-      ctx.fillStyle = b.flash > 0 ? '#ffffff' : def.c; ctx.fill();
-      ctx.strokeStyle = b.frozen > 0 ? '#bae6fd' : 'rgba(0,0,0,.3)'; ctx.lineWidth = b.frozen > 0 ? 3 : 2; ctx.stroke();
-      ctx.beginPath(); ctx.ellipse(b.x - 5, b.y - 8, 3.5, 5, -.5, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,255,255,.5)'; ctx.fill();
-    }
+    for (const b of S.balloons) if (b.s >= 0) drawBalloon(b);
 
     for (const p of S.projs) {
       ctx.beginPath();
       if (p.kind === 'bomb') { ctx.arc(p.x, p.y, 9, 0, Math.PI * 2); ctx.fillStyle = '#111827'; ctx.fill(); ctx.strokeStyle = '#f97316'; ctx.lineWidth = 2; ctx.stroke(); }
-      else { ctx.arc(p.x, p.y, p.kind === 'dart' ? 4.5 : 3.5, 0, Math.PI * 2); ctx.fillStyle = p.col; ctx.fill(); }
+      else { ctx.arc(p.x, p.y, p.col === '#fca5a5' ? 3 : 4.5, 0, Math.PI * 2); ctx.fillStyle = p.col; ctx.fill(); }
     }
 
     for (const f of S.fx) {
@@ -553,8 +608,12 @@
     for (const k of ORDER) {
       const d = TD[k];
       const b = document.createElement('button');
-      b.className = 'tw'; b.type = 'button'; b.dataset.k = k; b.style.setProperty('--c', d.col);
-      b.innerHTML = '<i></i><span>' + d.name + '</span><small>' + d.cost + '</small>';
+      b.className = 'tw'; b.type = 'button'; b.dataset.k = k;
+      const ic = document.createElement('canvas'); ic.width = 92; ic.height = 92;
+      const ic2 = ic.getContext('2d'); drawMonkey(ic2, 46, 46, k, 1.6);
+      const txt = document.createElement('div'); txt.className = 'txt';
+      txt.innerHTML = '<span>' + d.name + '</span><small>' + d.cost + '</small>';
+      b.appendChild(ic); b.appendChild(txt);
       b.addEventListener('click', () => {
         if (!S.playing || S.over) return;
         S.place = S.place === k ? null : k;
@@ -563,6 +622,8 @@
       });
       shop.appendChild(b);
     }
+    const si = $('selIcon').getContext('2d');
+    si.clearRect(0, 0, 52, 52);
   }
 
   function renderHud() {
@@ -581,29 +642,40 @@
     });
   }
 
+  let selKey = '';
   function renderSel() {
     const box = $('sel');
-    if (!S.sel) { box.hidden = true; return; }
+    if (!S.sel) { box.hidden = true; selKey = ''; return; }
     box.hidden = false;
     const t = S.sel, d = TD[t.k], st = stats(t);
+    const key = t.k + t.a + t.b;
+    if (key !== selKey) {
+      selKey = key;
+      const si = $('selIcon').getContext('2d');
+      si.clearRect(0, 0, 52, 52); drawMonkey(si, 26, 28, t.k, .85);
+    }
     $('selName').textContent = d.name;
-    $('selInfo').textContent = d.desc + ' Danno ' + st.dmg + ', raggio ' + Math.round(st.range) + ', ricarica ' + st.cd.toFixed(2) + ' s.';
+    $('selInfo').textContent = 'Danno ' + st.dmg + ', raggio ' + Math.round(st.range) + ', ricarica ' + st.cd.toFixed(2) + ' s. ' + d.desc;
     [0, 1].forEach((p) => {
       const btn = $(p === 0 ? 'upA' : 'upB');
       const tier = p === 0 ? t.a : t.b;
-      const name = d.up[p].name;
       const next = canUp(t, p) ? tierCost(t.k, tier) : null;
       let pips = '';
       for (let i = 0; i < MAXT; i++) pips += '<i class="' + (i < tier ? 'f' : '') + '"></i>';
-      btn.innerHTML = '<b>' + name + '</b><span class="pips">' + pips + '</span><small>' +
-        (next === null ? (tier >= MAXT ? 'Massimo' : 'Bloccato') : 'Potenzia · ' + next) + '</small>';
+      btn.innerHTML = '<b>' + d.up[p].name + '</b><span class="pips">' + pips + '</span><small>' +
+        (next === null ? (tier >= MAXT ? 'Livello massimo' : 'Bloccato') : 'Potenzia · ' + next) + '</small>';
       btn.disabled = next === null || S.cash < next;
     });
     $('sellBtn').textContent = 'Vendi · +' + Math.round(t.spent * .7);
   }
 
+  // Converte il tocco in coordinate della mappa, anche quando la pagina è ruotata di 90 gradi.
+  const rotated = () => window.matchMedia('(orientation: portrait)').matches;
   function toCanvas(e) {
     const r = cv.getBoundingClientRect();
+    if (rotated()) {
+      return { x: (e.clientY - r.top) / r.height * W, y: (r.right - e.clientX) / r.width * H };
+    }
     return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height };
   }
 
@@ -612,14 +684,15 @@
   cv.addEventListener('pointerdown', (e) => {
     if (!S.playing || S.over) return;
     const p = toCanvas(e);
-    const hit = S.towers.find((t) => Math.hypot(t.x - p.x, t.y - p.y) < 28);
+    const hit = S.towers.find((t) => Math.hypot(t.x - p.x, t.y - p.y) < 30);
     if (S.place) {
       if (hit) { S.sel = hit; S.place = null; renderSel(); return; }
       const d = TD[S.place];
-      if (!canBuild(p.x, p.y)) { say('Serve spazio libero lontano dal sentiero.', 'bad'); return; }
-      if (S.cash < d.cost) { say('Soldi insufficienti per ' + d.name + '.', 'bad'); return; }
       const col = Math.floor(p.x / T), row = Math.floor(p.y / T);
-      const t = { k: S.place, x: col * T + T / 2, y: row * T + T / 2, a: 0, b: 0, cool: 0, spent: d.cost, recoil: 0 };
+      const cx = col * T + T / 2, cy = row * T + T / 2;
+      if (!canBuild(cx, cy)) { say('Serve una casella libera, lontano dal sentiero.', 'bad'); return; }
+      if (S.cash < d.cost) { say('Soldi insufficienti per ' + d.name + '.', 'bad'); return; }
+      const t = { k: S.place, x: cx, y: cy, a: 0, b: 0, cool: 0, spent: d.cost, recoil: 0 };
       S.towers.push(t);
       S.cash -= d.cost;
       S.place = null; S.hover = null; S.sel = t;
@@ -644,7 +717,7 @@
     const t = S.sel; if (!t) return;
     S.cash += Math.round(t.spent * .7);
     S.towers = S.towers.filter((x) => x !== t);
-    S.sel = null; renderSel(); say('Torre venduta.');
+    S.sel = null; renderSel(); say('Scimmia venduta.');
   });
 
   $('play').addEventListener('click', startRound);
@@ -654,20 +727,19 @@
 
   /* ---------- Menu iniziale ---------- */
   function buildMenu() {
-    const maps = $('maps'), diffs = $('diffs');
     MAPS.forEach((m, i) => {
       const b = document.createElement('button');
       b.type = 'button'; b.className = 'opt'; b.dataset.i = i;
       b.innerHTML = '<b>' + m.name + '</b><small>' + m.desc + '</small>';
       b.addEventListener('click', () => { S.mapIdx = i; markMenu(); });
-      maps.appendChild(b);
+      $('maps').appendChild(b);
     });
     DIFFS.forEach((d, i) => {
       const b = document.createElement('button');
       b.type = 'button'; b.className = 'opt'; b.dataset.i = i;
       b.innerHTML = '<b>' + d.name + '</b><small>' + d.desc + ' Vite ' + d.lives + '.</small>';
       b.addEventListener('click', () => { S.diffIdx = i; markMenu(); });
-      diffs.appendChild(b);
+      $('diffs').appendChild(b);
     });
     markMenu();
   }
@@ -677,7 +749,6 @@
   }
 
   function newGame() {
-    S.mapIdx = S.mapIdx ?? 0;
     S.map = MAPS[S.mapIdx];
     S.diff = DIFFS[S.diffIdx];
     setMap(S.map);
@@ -688,15 +759,12 @@
     S.over = false; S.won = false; S.playing = true;
     $('start').hidden = true; $('end').hidden = true;
     renderSel();
-    say('Scegli una torre, poi tocca il prato per piazzarla.');
+    say('Scegli una scimmia, poi tocca il prato per piazzarla.');
   }
   $('go').addEventListener('click', newGame);
   $('again').addEventListener('click', () => { $('end').hidden = true; $('start').hidden = false; });
 
-  /* ---------- Ciclo ---------- */
-  buildShop();
-  buildMenu();
-  setMap(MAPS[0]);
+  /* ---------- Adattamento e ciclo ---------- */
   // Adatta la mappa allo spazio libero, mantenendo le proporzioni 960:600.
   let fitW = 0, fitH = 0;
   function fit() {
@@ -709,6 +777,10 @@
     cv.style.height = Math.floor(s / 1.6) + 'px';
   }
   window.addEventListener('resize', fit);
+
+  buildShop();
+  buildMenu();
+  setMap(MAPS[0]);
   let last = performance.now();
   function frame(now) {
     const dt = Math.min(.05, (now - last) / 1000);
