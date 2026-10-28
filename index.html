@@ -1,3 +1,4 @@
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="claude:viewport-fit-sides" content="cover">
 <title>Pop Tower Defense</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap">
@@ -76,9 +77,31 @@
   .opt small { color: var(--muted); font-size: 12px; }
   .card .btn.main { align-self: stretch; padding: 12px; margin-top: 6px; }
   #end h1 { font-size: 26px; }
-  @media (max-width: 420px) { .ctrl { margin-left: 0; width: 100%; } .ctrl .btn { flex: 1; } .opts { grid-template-columns: 1fr; } }
+  .ctrl { margin-left: auto; }
+  .opts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* Layout di gioco: mappa a sinistra, comandi a destra. Sempre orizzontale. */
+  html, body { height: 100%; }
+  body { overflow: hidden; }
+  #rot { height: 100%; }
+  .app { height: 100%; max-width: none; padding: 8px 12px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 300px); grid-template-rows: auto minmax(0, 1fr); gap: 10px; }
+  .hud { grid-column: 1 / -1; }
+  .board { grid-column: 1; grid-row: 2; min-height: 0; height: 100%; overflow: hidden; display: flex; align-items: center; justify-content: center; background: var(--panel); }
+  canvas { display: block; width: 100%; height: auto; aspect-ratio: auto; }
+  .side { grid-column: 2; grid-row: 2; min-height: 0; overflow-y: auto; }
+  .shop { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tw { flex-direction: row; justify-content: flex-start; gap: 8px; padding: 8px 10px; }
+  .tw i { width: 20px; height: 20px; flex: 0 0 auto; }
+  .tw span { flex: 1; text-align: left; }
+  .ups { grid-template-columns: 1fr; }
+  .sel { padding: 10px 12px; }
+  .hud .stat b { font-size: 20px; }
+  /* Telefono in verticale: la pagina viene ruotata di 90 gradi, così il gioco resta orizzontale. */
+  @media (orientation: portrait) {
+    #rot { position: fixed; top: 0; left: 0; width: 100vh; height: 100vw; transform-origin: 0 0; transform: translateX(100vw) rotate(90deg); overflow: hidden; background: var(--bg); }
+  }
 </style>
 
+<div id="rot">
 <main class="app">
   <header class="hud">
     <div class="stat"><span>Vite</span><b id="lives">0</b></div>
@@ -94,6 +117,7 @@
 
   <div class="board"><canvas id="cv" width="960" height="600" aria-label="Campo di gioco"></canvas></div>
 
+  <div class="side">
   <section class="shop" id="shop" aria-label="Torri"></section>
 
   <section class="sel" id="sel" hidden>
@@ -109,6 +133,7 @@
   </section>
 
   <p class="msg" id="msg" role="status"></p>
+  </div>
 </main>
 
 <div class="overlay" id="start">
@@ -130,6 +155,7 @@
   </div>
 </div>
 
+</div>
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -671,6 +697,18 @@
   buildShop();
   buildMenu();
   setMap(MAPS[0]);
+  // Adatta la mappa allo spazio libero, mantenendo le proporzioni 960:600.
+  let fitW = 0, fitH = 0;
+  function fit() {
+    const bd = cv.parentElement;
+    const w = bd.clientWidth, h = bd.clientHeight;
+    if (!w || !h || (w === fitW && h === fitH)) return;
+    fitW = w; fitH = h;
+    const s = Math.min(w - 2, (h - 2) * 1.6);
+    cv.style.width = Math.floor(s) + 'px';
+    cv.style.height = Math.floor(s / 1.6) + 'px';
+  }
+  window.addEventListener('resize', fit);
   let last = performance.now();
   function frame(now) {
     const dt = Math.min(.05, (now - last) / 1000);
@@ -678,6 +716,7 @@
     if (S.playing && !S.over && $('start').hidden) {
       for (let i = 0; i < S.speed; i++) update(dt);
     }
+    fit();
     draw();
     renderHud();
     if (S.sel && !$('sel').hidden) renderSel();
